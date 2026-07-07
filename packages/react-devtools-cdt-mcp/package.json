@@ -4,6 +4,24 @@
   "description": "Integration of React tools with chrome-devtools-mcp",
   "license": "MIT",
   "main": "index.js",
+  "module": "dist/index.mjs",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./index.js"
+    },
+    "./register": {
+      "import": "./dist/register.mjs",
+      "require": "./register.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": [
+    "./src/register.js",
+    "./register.js",
+    "./dist/register.js",
+    "./dist/register.mjs"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/facebook/react.git",
