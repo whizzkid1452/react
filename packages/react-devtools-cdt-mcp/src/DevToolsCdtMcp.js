@@ -307,6 +307,14 @@ export type CdtMcpToolGroup = {
   tools: Array<CdtMcpTool>,
 };
 
+type Registration = {
+  facade: Facade,
+  listener: (event: any) => void,
+  refCount: number,
+};
+
+const registrations: WeakMap<any, Registration> = new WeakMap();
+
 /**
  * Build the chrome-devtools-mcp tool group from an assembled set of facade
  * tools. Each tool returns its facade result directly.
@@ -350,21 +358,47 @@ export function register(target?: any = globalThis): {
   facade: Facade,
   unregister: () => void,
 } {
-  const facade = installFacade(target);
+  let registration: Registration | void = registrations.get(target);
+  if (registration == null) {
+    const facade = installFacade(target);
 
-  let toolGroup: CdtMcpToolGroup | null = null;
-  const listener = (event: any) => {
-    if (toolGroup === null) {
-      toolGroup = buildToolGroup(createTools(facade));
-    }
-    event.respondWith(toolGroup);
-  };
-  target.addEventListener('devtoolstooldiscovery', listener);
+    let toolGroup: CdtMcpToolGroup | null = null;
+    const listener = (event: any) => {
+      if (toolGroup === null) {
+        toolGroup = buildToolGroup(createTools(facade));
+      }
+      event.respondWith(toolGroup);
+    };
+    target.addEventListener('devtoolstooldiscovery', listener);
+
+    const newRegistration: Registration = {
+      facade,
+      listener,
+      refCount: 0,
+    };
+    registrations.set(target, newRegistration);
+    registration = newRegistration;
+  }
+
+  const activeRegistration = registration;
+  activeRegistration.refCount++;
+  let isRegistered = true;
 
   return {
-    facade,
+    facade: activeRegistration.facade,
     unregister: () => {
-      target.removeEventListener('devtoolstooldiscovery', listener);
+      if (!isRegistered) {
+        return;
+      }
+      isRegistered = false;
+      activeRegistration.refCount--;
+      if (activeRegistration.refCount === 0) {
+        target.removeEventListener(
+          'devtoolstooldiscovery',
+          activeRegistration.listener,
+        );
+        registrations.delete(target);
+      }
     },
   };
 }
